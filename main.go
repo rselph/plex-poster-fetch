@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -61,23 +60,54 @@ func plexGet(key string, objOut interface{}) {
 	return
 }
 
-func fetchPoster(thumb string) {
-	resp, err := http.Get(srv + thumb)
+type Video struct {
+	Title string `xml:"title,attr"`
+	Year  string `xml:"year,attr"`
+	Thumb string `xml:"thumb,attr"`
+}
+
+func (v *Video) fileName() string {
+	name := fmt.Sprintf("%s (%s).jpg", v.Title, v.Year)
+	name = strings.Map(func(r rune) rune {
+		switch r {
+		case ':', '/', '\\', '?', '*':
+			return ' '
+		default:
+			return r
+		}
+	}, name)
+	return name
+}
+
+type VideoList struct {
+	Videos []*Video `xml:"Video"`
+}
+
+func fetchPosters(list *VideoList) {
+	for _, v := range list.Videos {
+		fetchPoster(v)
+	}
+}
+
+func fetchPoster(v *Video) {
+	resp, err := http.Get(srv + v.Thumb)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
 
-	fileName := strings.ReplaceAll(thumb, "/", "_") + ".jpg"
-	fileName = strings.TrimLeft(fileName, "_")
-	fmt.Println(fileName)
-	f, err := os.Create(fileName)
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
 
-	_, err = io.Copy(f, resp.Body)
+	if len(bodyBytes) == 0 {
+		return
+	}
+
+	fileName := v.fileName()
+	fmt.Println(fileName)
+	err = ioutil.WriteFile(fileName, bodyBytes, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,16 +132,9 @@ func fetchPlaylist() {
 		log.Fatal("no such playlist")
 	}
 
-	var onePlaylist struct {
-		Videos []struct {
-			Thumb string `xml:"thumb,attr"`
-		} `xml:"Video"`
-	}
+	var onePlaylist *VideoList
 	plexGet(key, &onePlaylist)
-
-	for _, video := range onePlaylist.Videos {
-		fetchPoster(video.Thumb)
-	}
+	fetchPosters(onePlaylist)
 }
 
 func fetchLibrary() {
@@ -133,14 +156,7 @@ func fetchLibrary() {
 		log.Fatal("no such library")
 	}
 
-	var oneLibrary struct {
-		Videos []struct {
-			Thumb string `xml:"thumb,attr"`
-		} `xml:"Video"`
-	}
+	var oneLibrary *VideoList
 	plexGet("/library/sections/"+key+"/all", &oneLibrary)
-
-	for _, video := range oneLibrary.Videos {
-		fetchPoster(video.Thumb)
-	}
+	fetchPosters(oneLibrary)
 }
