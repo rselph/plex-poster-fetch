@@ -50,6 +50,10 @@ func plexGet(key string, objOut interface{}) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		log.Fatal(resp.Status)
+	}
+
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
 	err = xml.Unmarshal(bodyBytes, objOut)
