@@ -15,11 +15,15 @@ var (
 	srv            string
 	selectPlaylist string
 	selectLibrary  string
+	listPlaylists  bool
+	listLibraries  bool
 )
 
 func main() {
 	flag.StringVar(&selectPlaylist, "playlist", "", "playlist to get images from")
 	flag.StringVar(&selectLibrary, "library", "", "library to get images from")
+	flag.BoolVar(&listPlaylists, "list-playlists", false, "list all playlists")
+	flag.BoolVar(&listLibraries, "list-libraries", false, "list all libraries")
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
 	flag.Parse()
 
@@ -33,6 +37,14 @@ func main() {
 	}
 
 	srv = strings.TrimRight(srv, "/")
+
+	if listLibraries {
+		fetchLibraryList()
+	}
+
+	if listPlaylists {
+		fetchPlaylistList()
+	}
 
 	if selectPlaylist != "" {
 		fetchPlaylist()
@@ -163,4 +175,32 @@ func fetchLibrary() {
 	var oneLibrary *VideoList
 	plexGet("/library/sections/"+key+"/all", &oneLibrary)
 	fetchPosters(oneLibrary)
+}
+
+func fetchLibraryList() {
+	var allLibraries struct {
+		Libraries []struct {
+			Key   string `xml:"key,attr"`
+			Title string `xml:"title,attr"`
+		} `xml:"Directory"`
+	}
+	plexGet("/library/sections", &allLibraries)
+
+	for _, l := range allLibraries.Libraries {
+		fmt.Printf("    %s\n", l.Title)
+	}
+}
+
+func fetchPlaylistList() {
+	var allPlaylists struct {
+		Playlists []struct {
+			Key   string `xml:"key,attr"`
+			Title string `xml:"title,attr"`
+		} `xml:"Playlist"`
+	}
+	plexGet("/playlists", &allPlaylists)
+
+	for _, p := range allPlaylists.Playlists {
+		fmt.Printf("    %s\n", p.Title)
+	}
 }
