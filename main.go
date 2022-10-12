@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +13,7 @@ import (
 
 var (
 	srv            string
+	token          string
 	selectPlaylist string
 	selectLibrary  string
 	listPlaylists  bool
@@ -25,6 +26,8 @@ func main() {
 	flag.BoolVar(&listPlaylists, "list-playlists", false, "list all playlists")
 	flag.BoolVar(&listLibraries, "list-libraries", false, "list all libraries")
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
+	flag.StringVar(&token, "token", "",
+		"Plex token. See https://www.plexopedia.com/plex-media-server/general/plex-token/")
 	flag.Parse()
 
 	if srv == "" {
@@ -34,6 +37,10 @@ func main() {
 	if srv == "" {
 		fmt.Println("must specify the plex server")
 		os.Exit(1)
+	}
+
+	if token == "" {
+		token = os.Getenv("PLEX_TOKEN")
 	}
 
 	srv = strings.TrimRight(srv, "/")
@@ -55,8 +62,8 @@ func main() {
 	}
 }
 
-func plexGet(key string, objOut interface{}) {
-	resp, err := http.Get(srv + key)
+func plexGet(key string, objOut interface{}) []byte {
+	resp, err := http.Get(srv + key + "?X-Plex-Token=" + token)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,14 +73,16 @@ func plexGet(key string, objOut interface{}) {
 		log.Fatal(resp.Status)
 	}
 
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	err = xml.Unmarshal(bodyBytes, objOut)
-	if err != nil {
-		log.Fatal(err)
+	if objOut != nil {
+		err = xml.Unmarshal(bodyBytes, objOut)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	return
+	return bodyBytes
 }
 
 type Video struct {
@@ -106,16 +115,7 @@ func fetchPosters(list *VideoList) {
 }
 
 func fetchPoster(v *Video) {
-	resp, err := http.Get(srv + v.Thumb)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
+	bodyBytes := plexGet(v.Thumb, nil)
 
 	if len(bodyBytes) == 0 {
 		return
@@ -123,7 +123,7 @@ func fetchPoster(v *Video) {
 
 	fileName := v.fileName()
 	fmt.Println(fileName)
-	err = ioutil.WriteFile(fileName, bodyBytes, 0644)
+	err := os.WriteFile(fileName, bodyBytes, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
