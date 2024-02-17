@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ var (
 	selectLibrary  string
 	listPlaylists  bool
 	listLibraries  bool
+	unsafe         bool
 )
 
 func main() {
@@ -25,6 +27,7 @@ func main() {
 	flag.StringVar(&selectLibrary, "library", "", "library to get images from")
 	flag.BoolVar(&listPlaylists, "list-playlists", false, "list all playlists")
 	flag.BoolVar(&listLibraries, "list-libraries", false, "list all libraries")
+	flag.BoolVar(&unsafe, "unsafe", false, "ignore certificate errors")
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
 	flag.StringVar(&token, "token", "",
 		"Plex token. See https://www.plexopedia.com/plex-media-server/general/plex-token/")
@@ -44,6 +47,10 @@ func main() {
 	}
 
 	srv = strings.TrimRight(srv, "/")
+
+	if unsafe {
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
 
 	if listLibraries {
 		fetchLibraryList()
