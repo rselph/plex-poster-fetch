@@ -20,6 +20,7 @@ var (
 	listPlaylists  bool
 	listLibraries  bool
 	unsafe         bool
+	fanArt         bool
 )
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 	flag.BoolVar(&listPlaylists, "list-playlists", false, "list all playlists")
 	flag.BoolVar(&listLibraries, "list-libraries", false, "list all libraries")
 	flag.BoolVar(&unsafe, "unsafe", false, "ignore certificate errors")
+	flag.BoolVar(&fanArt, "fanart", false, "get fanart instead of posters")
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
 	flag.StringVar(&token, "token", "",
 		"Plex token. See https://www.plexopedia.com/plex-media-server/general/plex-token/")
@@ -96,6 +98,7 @@ type Video struct {
 	Title string `xml:"title,attr"`
 	Year  string `xml:"year,attr"`
 	Thumb string `xml:"thumb,attr"`
+	Art   string `xml:"art,attr"`
 }
 
 func (v *Video) fileName() string {
@@ -136,6 +139,27 @@ func fetchPoster(v *Video) {
 	}
 }
 
+func fetchFanarts(list *VideoList) {
+	for _, v := range list.Videos {
+		fetchFanart(v)
+	}
+}
+
+func fetchFanart(v *Video) {
+	bodyBytes := plexGet(v.Art, nil)
+
+	if len(bodyBytes) == 0 {
+		return
+	}
+
+	fileName := v.fileName()
+	fmt.Println(fileName)
+	err := os.WriteFile(fileName, bodyBytes, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func fetchPlaylist() {
 	var allPlaylists struct {
 		Playlists []struct {
@@ -157,7 +181,11 @@ func fetchPlaylist() {
 
 	var onePlaylist *VideoList
 	plexGet(key, &onePlaylist)
-	fetchPosters(onePlaylist)
+	if fanArt {
+		fetchFanarts(onePlaylist)
+	} else {
+		fetchPosters(onePlaylist)
+	}
 }
 
 func fetchLibrary() {
@@ -181,7 +209,11 @@ func fetchLibrary() {
 
 	var oneLibrary *VideoList
 	plexGet("/library/sections/"+key+"/all", &oneLibrary)
-	fetchPosters(oneLibrary)
+	if fanArt {
+		fetchFanarts(oneLibrary)
+	} else {
+		fetchPosters(oneLibrary)
+	}
 }
 
 func fetchLibraryList() {
