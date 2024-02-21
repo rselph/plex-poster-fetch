@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -21,6 +22,8 @@ var (
 	listLibraries  bool
 	unsafe         bool
 	fanArt         bool
+	debug          string
+	debugRegex     *regexp.Regexp
 )
 
 func main() {
@@ -33,6 +36,7 @@ func main() {
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
 	flag.StringVar(&token, "token", "",
 		"Plex token. See https://www.plexopedia.com/plex-media-server/general/plex-token/")
+	flag.StringVar(&debug, "debug", "", "regular expression for keys to print")
 	flag.Parse()
 
 	if srv == "" {
@@ -52,6 +56,10 @@ func main() {
 
 	if unsafe {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	if debug != "" {
+		debugRegex = regexp.MustCompile(debug)
 	}
 
 	if listLibraries {
@@ -83,6 +91,10 @@ func plexGet(key string, objOut interface{}) []byte {
 	}
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
+
+	if debugRegex != nil && debugRegex.MatchString(key) {
+		fmt.Println(string(bodyBytes))
+	}
 
 	if objOut != nil {
 		err = xml.Unmarshal(bodyBytes, objOut)
