@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -23,7 +24,10 @@ var (
 	unsafe         bool
 	fanArt         bool
 	debug          string
-	debugRegex     *regexp.Regexp
+	quiet          bool
+
+	debugRegex *regexp.Regexp
+	now        = time.Now().Unix()
 )
 
 func main() {
@@ -36,6 +40,7 @@ func main() {
 	flag.StringVar(&srv, "plex", "", "URL of plex server")
 	flag.StringVar(&token, "token", "",
 		"Plex token. See https://www.plexopedia.com/plex-media-server/general/plex-token/")
+	flag.BoolVar(&quiet, "q", false, "suppress non-error output")
 	flag.StringVar(&debug, "debug", "", "regular expression for keys to print")
 	flag.Parse()
 
@@ -107,10 +112,12 @@ func plexGet(key string, objOut interface{}) []byte {
 }
 
 type Video struct {
-	Title string `xml:"title,attr"`
-	Year  string `xml:"year,attr"`
-	Thumb string `xml:"thumb,attr"`
-	Art   string `xml:"art,attr"`
+	Title     string `xml:"title,attr"`
+	Year      string `xml:"year,attr"`
+	Thumb     string `xml:"thumb,attr"`
+	Art       string `xml:"art,attr"`
+	AddedAt   int64  `xml:"addedAt,attr"`
+	UpdatedAt int64  `xml:"updatedAt,attr"`
 }
 
 func (v *Video) fileName() string {
@@ -137,6 +144,8 @@ func fetchPosters(list *VideoList) {
 }
 
 func fetchPoster(v *Video) {
+	v.Validate()
+
 	bodyBytes := plexGet(v.Thumb, nil)
 
 	if len(bodyBytes) == 0 {
@@ -144,7 +153,9 @@ func fetchPoster(v *Video) {
 	}
 
 	fileName := v.fileName()
-	fmt.Println(fileName)
+	if !quiet {
+		fmt.Println(fileName)
+	}
 	err := os.WriteFile(fileName, bodyBytes, 0644)
 	if err != nil {
 		log.Fatal(err)
@@ -158,6 +169,8 @@ func fetchFanarts(list *VideoList) {
 }
 
 func fetchFanart(v *Video) {
+	v.Validate()
+
 	bodyBytes := plexGet(v.Art, nil)
 
 	if len(bodyBytes) == 0 {
@@ -165,7 +178,9 @@ func fetchFanart(v *Video) {
 	}
 
 	fileName := v.fileName()
-	fmt.Println(fileName)
+	if !quiet {
+		fmt.Println(fileName)
+	}
 	err := os.WriteFile(fileName, bodyBytes, 0644)
 	if err != nil {
 		log.Fatal(err)
@@ -253,5 +268,14 @@ func fetchPlaylistList() {
 
 	for _, p := range allPlaylists.Playlists {
 		fmt.Printf("    %s\n", p.Title)
+	}
+}
+
+func (v *Video) Validate() {
+	if v.AddedAt > now || v.UpdatedAt > now {
+		fmt.Printf("WARNING: FUTURE DATE %s (%s)\n", v.Title, v.Year)
+		fmt.Printf("\tAdded: %s, Updated: %s\n",
+			time.Unix(v.AddedAt, 0).Format(time.DateTime),
+			time.Unix(v.UpdatedAt, 0).Format(time.DateTime))
 	}
 }
