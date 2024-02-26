@@ -120,8 +120,8 @@ type Video struct {
 	UpdatedAt int64  `xml:"updatedAt,attr"`
 }
 
-func (v *Video) fileName() string {
-	name := fmt.Sprintf("%s (%s).jpg", v.Title, v.Year)
+func (v *Video) fileName(suffix string) string {
+	name := fmt.Sprintf("%s (%s)%s.jpg", v.Title, v.Year, suffix)
 	name = strings.Map(func(r rune) rune {
 		switch r {
 		case ':', '/', '\\', '?', '*':
@@ -152,7 +152,7 @@ func fetchPoster(v *Video) {
 		return
 	}
 
-	fileName := v.fileName()
+	fileName := v.fileName(" poster")
 	if !quiet {
 		fmt.Println(fileName)
 	}
@@ -177,7 +177,7 @@ func fetchFanart(v *Video) {
 		return
 	}
 
-	fileName := v.fileName()
+	fileName := v.fileName(" fanart")
 	if !quiet {
 		fmt.Println(fileName)
 	}
